@@ -21,5 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "ml-playground"
 include(":app")
-include(":lib-version-core")
+include(":lib-vision-core")
 include(":feature-camerax-hello")
