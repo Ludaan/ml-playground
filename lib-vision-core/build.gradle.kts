@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lib_version_core"
+    namespace = "com.example.lib_vision_core"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.lib_version_core"
+        applicationId = "com.example.lib_vision_core"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
