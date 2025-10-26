@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.ml_playground.cameraxhello"
+    namespace = "com.example.feature_camerax_hello"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.ml_playground.cameraxhello"
+        applicationId = "com.example.feature_camerax_hello"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -53,7 +53,7 @@ dependencies {
 
     // (Opcional) AppCompat / Material (si los necesitas)
     // implementation(libs.androidx.appcompat)
-    // implementation(libs.material)
+     implementation(libs.material)
 
     // Testing
     testImplementation(libs.junit)
