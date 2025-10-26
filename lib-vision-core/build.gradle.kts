@@ -36,6 +36,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.runtime)
 
     // CameraX (helpers/utilidades que usarás aquí)
     implementation(libs.androidx.camerax.core)
