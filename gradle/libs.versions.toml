@@ -20,6 +20,7 @@ material = "1.13.0"
 
 #mlkit
 mlkit-text = "16.0.0"
+mlkit-face = "16.1.6"
 
 
 
@@ -53,6 +54,8 @@ material = { group = "com.google.android.material", name = "material", version.r
 
 #ML kit
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkit-text" }
+mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version.ref = "mlkit-face" }
+
 
 
 [plugins]
