@@ -23,17 +23,18 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
+import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
-import com.google.android.gms.tasks.Task
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FaceDetectionScreen() {
     val context = LocalContext.current
@@ -47,6 +48,18 @@ fun FaceDetectionScreen() {
     // Resultados
     var faceBoxes by remember { mutableStateOf<List<android.graphics.Rect>>(emptyList()) }
 
+    // UI controls
+    var showBoxes by remember { mutableStateOf(true) }
+    var strokeDp by remember { mutableStateOf(3f) }
+    val colorOptions = listOf(
+        "Rojo" to Color.Red,
+        "Verde" to Color(0xFF00C853),
+        "Azul" to Color(0xFF2962FF),
+        "Amarillo" to Color(0xFFFFD600),
+    )
+    var selectedColorIdx by remember { mutableStateOf(0) }
+    var colorMenuExpanded by remember { mutableStateOf(false) }
+
     // Tamaño mostrado para mapear coords
     var renderedSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -54,7 +67,7 @@ fun FaceDetectionScreen() {
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> selectedUri = uri }
 
-    // Cargar Bitmap cuando cambia el URI (respetando EXIF en API 28+)
+    // Cargar Bitmap cuando cambia el URI (respeta EXIF en API 28+)
     LaunchedEffect(selectedUri) {
         faceBoxes = emptyList()
         errorText = null
@@ -83,7 +96,7 @@ fun FaceDetectionScreen() {
         faceBoxes = emptyList()
 
         try {
-            val image = InputImage.fromBitmap(bmp, 0) // rotación ya viene aplicada por ImageDecoder
+            val image = InputImage.fromBitmap(bmp, 0)
             val options = FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
@@ -104,6 +117,7 @@ fun FaceDetectionScreen() {
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // Top bar de acciones
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -117,15 +131,69 @@ fun FaceDetectionScreen() {
 
             if (isProcessing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(8.dp))
                     CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Detectando rostros…")
+                    Text("Detectando…")
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // Controles de overlay
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Switch mostrar cajas
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = showBoxes, onCheckedChange = { showBoxes = it })
+                Spacer(Modifier.width(6.dp))
+                Text("Mostrar boxes")
+            }
+
+            // Grosor
+            Text("Grosor", modifier = Modifier.padding(start = 4.dp))
+            Slider(
+                value = strokeDp,
+                onValueChange = { strokeDp = it },
+                valueRange = 1f..10f,
+                steps = 8,
+                modifier = Modifier.weight(1f)
+            )
+
+            // Color (dropdown)
+            ExposedDropdownMenuBox(
+                expanded = colorMenuExpanded,
+                onExpandedChange = { colorMenuExpanded = it }
+            ) {
+                OutlinedTextField(
+                    readOnly = true,
+                    value = colorOptions[selectedColorIdx].first,
+                    onValueChange = {},
+                    label = { Text("Color") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorMenuExpanded) },
+                    modifier = Modifier.menuAnchor().widthIn(min = 140.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = colorMenuExpanded,
+                    onDismissRequest = { colorMenuExpanded = false }
+                ) {
+                    colorOptions.forEachIndexed { index, (name, _) ->
+                        DropdownMenuItem(
+                            text = { Text(name) },
+                            onClick = {
+                                selectedColorIdx = index
+                                colorMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
 
         // Imagen + overlay
         val bmp = bitmap
@@ -141,41 +209,46 @@ fun FaceDetectionScreen() {
                 Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = "Imagen seleccionada",
-                    contentScale = ContentScale.Fit, // Fit para preservar escalado uniforme (con letterbox si hace falta)
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Overlay con bounding boxes
-                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                    if (renderedSize.width == 0 || renderedSize.height == 0) return@Canvas
+                // Overlay con bounding boxes (si está activado)
+                if (showBoxes && faceBoxes.isNotEmpty()) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        if (renderedSize.width == 0 || renderedSize.height == 0) return@Canvas
 
-                    // Calcula escalado y offsets para mapear coords de bitmap → canvas
-                    val imgW = bmp.width.toFloat()
-                    val imgH = bmp.height.toFloat()
-                    val viewW = size.width
-                    val viewH = size.height
+                        val viewW = size.width
+                        val viewH = size.height
+                        val imgW = bmp.width.toFloat()
+                        val imgH = bmp.height.toFloat()
 
-                    // Escalado uniforme (fit), con barras si sobra en un eje
-                    val scale = minOf(viewW / imgW, viewH / imgH)
-                    val drawW = imgW * scale
-                    val drawH = imgH * scale
-                    val offsetX = (viewW - drawW) / 2f
-                    val offsetY = (viewH - drawH) / 2f
+                        // Escalado uniforme FIT (letterbox si sobra)
+                        val scale = minOf(viewW / imgW, viewH / imgH)
+                        val drawW = imgW * scale
+                        val drawH = imgH * scale
+                        val offsetX = (viewW - drawW) / 2f
+                        val offsetY = (viewH - drawH) / 2f
 
-                    val stroke = Stroke(width = 3.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f)))
-                    faceBoxes.forEach { r ->
-                        // r está en coords del bitmap
-                        val left = offsetX + r.left * scale
-                        val top = offsetY + r.top * scale
-                        val right = offsetX + r.right * scale
-                        val bottom = offsetY + r.bottom * scale
-
-                        drawRect(
-                            color = Color.Red,
-                            topLeft = Offset(left, top),
-                            size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
-                            style = stroke
+                        val stroke = Stroke(
+                            width = strokeDp.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
                         )
+                        val color = colorOptions[selectedColorIdx].second
+
+                        faceBoxes.forEach { r ->
+                            val left = offsetX + r.left * scale
+                            val top = offsetY + r.top * scale
+                            val right = offsetX + r.right * scale
+                            val bottom = offsetY + r.bottom * scale
+
+                            drawRect(
+                                color = color,
+                                topLeft = Offset(left, top),
+                                size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+                                style = stroke
+                            )
+                        }
                     }
                 }
             }
